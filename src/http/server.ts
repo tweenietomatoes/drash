@@ -1,21 +1,11 @@
 import * as Drash from "../../mod.ts";
 import { StdServer } from "../../deps.ts";
 
-interface ResourceAndParams {
-  resource: Drash.Resource;
-  pathParams: Map<string, string>;
-}
-
-type ResourcesAndPatterns = Map<number, {
-  resource: Drash.Resource;
-  patterns: URLPattern[];
-}>;
-
 function getResourceAndParams(
   url: string,
-  resources: ResourcesAndPatterns,
-): ResourceAndParams | undefined {
-  let resourceAndParams: ResourceAndParams | undefined = undefined;
+  resources: Drash.Types.TResourcesAndPatterns,
+): Drash.Interfaces.IResourceAndParams | undefined {
+  let resourceAndParams: Drash.Interfaces.IResourceAndParams | undefined = undefined;
   for (const { resource, patterns } of resources.values()) {
     for (const pattern of patterns) {
       const result = pattern.exec(url);
@@ -74,7 +64,7 @@ export class Server {
    * a url pattern for every path specified. This means when a request
    * comes in, the paths are already converted to patterns, saving us time
    */
-  readonly #resources: ResourcesAndPatterns = new Map();
+  readonly #resources: Drash.Types.TResourcesAndPatterns = new Map();
 
   /**
    * Our server instance that is serving the app
@@ -102,6 +92,7 @@ export class Server {
     if (!options.services) {
       options.services = [];
     }
+
     this.#options = options;
     this.#options.resources.forEach((resourceClass) => {
       const resource = new resourceClass();
@@ -115,6 +106,8 @@ export class Server {
         patterns,
       });
     });
+
+    this.#setUpServices();
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -167,6 +160,15 @@ export class Server {
   // FILE MARKER - PRIVATE METHODS /////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
+  #setUpServices(): void {
+    this.#options.services!.forEach(async (service: Drash.Service) => {
+      await service.setUp({
+        server: this,
+        resources: this.#resources,
+      });
+    });
+  }
+
   #getHandler(): (r: Request) => Promise<Response> {
     const resources = this.#resources;
     const serverServices = this.#options.services ?? [];
@@ -184,6 +186,7 @@ export class Server {
           resource: null,
           pathParams: new Map(),
         };
+
         const { resource, pathParams } = resourceAndParams;
 
         // Construct request and response objects to pass to services and resource
@@ -214,6 +217,10 @@ export class Server {
             "runAfterResource",
           );
           throw new Drash.Errors.HttpError(404);
+        }
+
+        if (!resource.services) {
+          resource.services = {};
         }
 
         // If the method does not exist on the resource, then the method is not

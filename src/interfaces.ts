@@ -1,4 +1,4 @@
-import { Request, Resource, Response, Service } from "../mod.ts";
+import { Request, Resource, Response, Server, Service, Types } from "../mod.ts";
 
 // This file contains ALL interfaces used by Drash. As a result, it is a very
 // large file.
@@ -18,6 +18,7 @@ import { Request, Resource, Response, Service } from "../mod.ts";
 // - IServer
 // - IServerOptions
 // - IService
+// - IServiceOptions
 
 /**
  * An interface to help type key-value pair objects with different values.
@@ -115,6 +116,11 @@ export interface IResource {
   TRACE?: (request: Request, response: Response) => Promise<void> | void;
 }
 
+export interface IResourceAndParams {
+  pathParams: Map<string, string>;
+  resource: IResource;
+}
+
 export interface IResourceServices {
   CONNECT?: Service[];
   DELETE?: Service[];
@@ -159,4 +165,9 @@ export interface IService {
     request: Request,
     response: Response,
   ) => void | Promise<void>;
+}
+
+export interface IServiceOptions {
+  server: Server,
+  resources: Types.TResourcesAndPatterns
 }
