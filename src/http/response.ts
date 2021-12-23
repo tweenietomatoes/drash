@@ -86,7 +86,12 @@ export class DrashResponse {
       );
     }
 
+    try {
     this.body = Deno.readTextFileSync(filepath);
+    } catch (error) {
+      console.log(error);
+    }
+    console.log(this.body);
     this.headers.set("Content-Type", type);
   }
 

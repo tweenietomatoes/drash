@@ -1,4 +1,4 @@
-import { Request, Resource, Response, Service } from "../mod.ts";
+import { Request, Resource, Response, Service, Server, Types } from "../mod.ts";
 
 // This file contains ALL interfaces used by Drash. As a result, it is a very
 // large file.
@@ -159,4 +159,16 @@ export interface IService {
     request: Request,
     response: Response,
   ) => void | Promise<void>;
+
+  runAtStartup?: (
+    server: Server,
+    resources: Types.TResourcesAndPatterns,
+  ) => void | Promise<void>;
+}
+
+export interface IResourceAndParams {
+  /** The instantiated resource class. */
+  resource: Resource;
+  /** The instantiated resource class' path params (if any). */
+  pathParams: Map<string, string>;
 }
