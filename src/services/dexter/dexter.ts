@@ -89,6 +89,14 @@ export class DexterService extends Service implements IService {
   }
 
   runAfterResource(request: Request, _response: Response) {
+    this.#logEndRequest(request);
+  }
+
+  runOnError(request: Request, _response: Response) {
+    this.#logEndRequest(request);
+  }
+
+  #logEndRequest(request: Request): void {
     if (!this.configs.response_time) {
       return;
     }

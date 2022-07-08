@@ -170,6 +170,11 @@ export interface IService {
     response: Response,
   ) => void | Promise<void>;
 
+  runOnError?: (
+    request: DrashRequest,
+    response: Response,
+  ) => void | Promise<void>;
+
   /**
    * Method that runs during server build time.
    */

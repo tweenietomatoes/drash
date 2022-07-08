@@ -5,8 +5,18 @@ async function runServices(
   Services: Drash.Interfaces.IService[],
   request: Drash.Request,
   response: Drash.Response,
-  serviceMethod: "runBeforeResource" | "runAfterResource",
+  serviceMethod: "runOnError" | "runBeforeResource" | "runAfterResource",
 ): Promise<void> {
+  if (serviceMethod === "runOnError") {
+    for (const Service of Services) {
+      if ("runOnError" in Service) {
+        await Service[serviceMethod]!(request, response);
+      }
+    }
+
+    return;
+  }
+
   // There are two ways a service can short-circuit the
   // request-resource-response lifecycle:
   //
@@ -278,12 +288,14 @@ export class Server {
     // Keep response top level so we can reuse the headers should an error be thrown
     // in the try
     const response = new Drash.Response();
+    const request = new Drash.Request(
+      originalRequest,
+      pathParams,
+      connInfo,
+    );
+
     try {
-      const request = await Drash.Request.create(
-        originalRequest,
-        pathParams,
-        connInfo,
-      );
+      await request.setParsedBody();
 
       // Run server-level services (before we get to the resource)
       await runServices(
@@ -394,11 +406,25 @@ export class Server {
       return this.#respond(response);
     } catch (e) {
       try {
-        await this.#error_handler.catch(e, originalRequest, response, connInfo);
+        await runServices(
+          this.#services,
+          request,
+          response,
+          "runOnError",
+        );
+
+        await this.#error_handler.catch(e, request, response, connInfo);
       } catch (e) {
+        await runServices(
+          this.#services,
+          request,
+          response,
+          "runOnError",
+        );
+
         await this.#default_error_handler.catch(
           e,
-          originalRequest,
+          request,
           response,
           connInfo,
         );
