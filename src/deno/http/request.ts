@@ -20,13 +20,12 @@
  */
 
 import { AbstractRequest } from "../../core/http/abstract_request.ts";
-import * as NodeTypes from "../types.ts";
 
 /**
  * Drash's version of a `Request`. This class introduces helper methods to
  * interact with the native `Request` object (e.g., `request.readBody("json"))`.
  */
-export class DrashRequest extends AbstractRequest {
+export class Request extends AbstractRequest {
   /**
    * Set the path params on this request. This takes the request's URL and
    * matches it to the path params defined by the resource it targets.
@@ -40,29 +39,36 @@ export class DrashRequest extends AbstractRequest {
       return pathParams;
     }
 
-    const patterns = this.resource_handler
-      .getOriginalUrlPatterns() as NodeTypes.ResourcePaths[];
+    const urlPatterns = this.resource_handler
+      .getOriginalUrlPatterns() as URLPattern[];
 
-    if (patterns.length <= 0) {
+    if (urlPatterns.length <= 0) {
       return pathParams;
     }
 
-    const url = new URL(this.url);
+    // for (const pattern of this.#resource_handler.url_patterns) {
+    for (const pattern of urlPatterns) {
+      const result = pattern.exec(this.url);
 
-    for (const pattern of patterns) {
-      const matchArray = url.pathname.match(pattern.regex_path);
-
-      // No need to get params if there aren't any
-      if (!matchArray || (matchArray.length == 1)) {
-        return pathParams;
+      if (result === null) {
+        continue;
       }
 
-      const params = matchArray.slice();
-      params.shift();
+      // This is the resource we need, and below are the path params that were
+      // found in the request's URL
+      const params: Record<string, string> = {};
 
-      pattern.params.forEach((paramName: string, index: number) => {
-        pathParams[paramName] = params[index];
-      });
+      for (const key in result.pathname.groups) {
+        params[key] = result.pathname.groups[key];
+      }
+
+      for (let [pathParam, value] of Object.entries(params)) {
+        if (value) {
+          value = value.trim();
+        }
+
+        pathParams[pathParam] = value === "" ? undefined : value;
+      }
     }
 
     return pathParams;

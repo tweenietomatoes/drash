@@ -22,7 +22,7 @@
 import * as Interfaces from "../interfaces.ts";
 import * as Types from "../types.ts";
 
-export abstract class ChainHandler implements Interfaces.Handler {
+export abstract class ChainHandler<RequestType> implements Interfaces.Handler {
   /**
    * Method to be implemented by all extended classes so they can be called by
    * other callers via `Interfaces.Handler`.
@@ -33,15 +33,21 @@ export abstract class ChainHandler implements Interfaces.Handler {
 
   /**
    * Each handler builds its own chain and passes that chain to this method to
-   * run it. Each chain is made up of methods that should run in sequence.
+   * run it. Each chain is made up of methods that should run in sequence in a
+   * non-blocking style, hence using a reducer on thenables in this method.
    * @param context
    * @param chain
    * @returns
    */
   protected runMethodChain(
-    context: Types.ContextForRequest,
-    chain: Types.HandleMethod<Types.ContextForRequest, void>[],
+    context: Types.ContextForRequest<RequestType>,
+    chain: Types.HandleMethod<Types.ContextForRequest<RequestType>, void>[],
   ): Types.Promisable<void> {
+    // TODO(crookse) Why is this running twice
+    if (!chain) {
+      return;
+    }
+    console.log(`we are in the chain. chain is:`, chain);
     return chain.reduce(
       (previousMethod, nextMethod) => {
         return previousMethod.then(() => nextMethod(context));

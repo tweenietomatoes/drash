@@ -36,14 +36,17 @@ import * as Types from "../types.ts";
  * filtering requests, running middleware on requests, and returning a response
  * from the resource that matches the request.
  */
-export abstract class AbstractRequestHandler extends ChainHandler
-  implements Interfaces.RequestHandler {
+export abstract class AbstractRequestHandler<RequestType>
+  extends ChainHandler<RequestType>
+  implements Interfaces.RequestHandler<RequestType> {
   /**
    * See {@link ErrorHandlerProxy}.
    */
-  protected error_handler: ErrorHandlerProxy;
-  protected method_chain: Types.HandleMethod<Types.ContextForRequest, void>[] =
-    [];
+  protected error_handler: ErrorHandlerProxy<RequestType>;
+  protected method_chain: Types.HandleMethod<
+    Types.ContextForRequest<RequestType>,
+    void
+  >[] = [];
   /**
    * Key-value store where the key is the resource name and the value is the
    * resource proxy. This is populated at compile time and referenced only on
@@ -61,45 +64,47 @@ export abstract class AbstractRequestHandler extends ChainHandler
     string,
     Interfaces.ResourceHandler
   > = {};
-  protected services_handler: ServicesHandler;
+  protected services_handler: ServicesHandler<RequestType>;
 
   // FILE MARKER - CONSTRUCTOR /////////////////////////////////////////////////
 
   /**
    * @param options - See {@link Types.RequestHandlerOptions}.
    */
-  constructor(options?: Types.RequestHandlerOptions) {
+  constructor(options?: Types.RequestHandlerOptions<RequestType>) {
     super();
     this.services_handler = new ServicesHandler(options?.services ?? []);
     this.error_handler = new ErrorHandlerProxy(
       options?.error_handler ?? ErrorHandler,
     );
     this.addResources(options?.resources ?? []);
-    this.#buildMethodChain();
+    this.buildMethodChain();
   }
 
   // FILE MARKER - METHODS - PUBLIC (EXPOSED) //////////////////////////////////
 
-  abstract createContext(incomingRequest: Request): Types.ContextForRequest;
+  abstract createContext(
+    incomingRequest: RequestType,
+  ): Types.ContextForRequest<RequestType>;
 
-  public addResources(resources: Types.ResourceClass[]): void {
-    resources.forEach((resourceClass: Types.ResourceClass) => {
+  public addResources(resources: Types.ResourceClass<RequestType>[]): void {
+    resources.forEach((resourceClass: Types.ResourceClass<RequestType>) => {
       this.addResourceHandler(resourceClass);
     });
   }
 
-  public handle(incomingRequest: Request): Types.Promisable<Response> {
+  public handle(incomingRequest: RequestType): Types.Promisable<Response> {
     const context = this.createContext(incomingRequest);
 
     return Promise
       .resolve()
       .then(() => this.matchRequestToResourceHandler(context))
       .then(() => super.runMethodChain(context, this.method_chain))
-      .then(() => (context: Types.ContextForRequest) => {
+      .then(() => (context: Types.ContextForRequest<RequestType>) => {
         return context.resource_handler?.handle(context);
       })
-      .catch((e: Error) => this.#runErrorHandler(context, e))
-      .then(() => (context.response as ResponseBuilder).toNativeResponse());
+      .catch((e: Error) => this.runErrorHandler(context, e))
+      .then(() => (context.response as ResponseBuilder).build());
   }
 
   // FILE MARKER - METHODS - PUBLIC (HIDDEN) ///////////////////////////////////
@@ -118,7 +123,7 @@ export abstract class AbstractRequestHandler extends ChainHandler
   }
 
   abstract matchRequestToResourceHandler(
-    context: Types.ContextForRequest,
+    context: Types.ContextForRequest<RequestType>,
   ): void;
 
   // FILE MARKER - METHODS - PRIVATE ///////////////////////////////////////////
@@ -130,22 +135,27 @@ export abstract class AbstractRequestHandler extends ChainHandler
    * @param ResourceClass - The resource class to instantiate and store in the
    * `resources` property.
    */
-  abstract addResourceHandler(ResourceClass: Types.ResourceClass): void;
+  abstract addResourceHandler(
+    ResourceClass: Types.ResourceClass<RequestType>,
+  ): void;
 
   /**
    * Build this handler's chain.
    */
-  #buildMethodChain(): void {
+  protected buildMethodChain(): void {
+    console.log("Building method chain");
     // Run all "global before resource" services
     if (this.services_handler.hasServices("runBeforeResource")) {
-      this.method_chain.push((context: Types.ContextForRequest) => {
-        return this.services_handler.runBeforeResourceServices(context);
-      });
+      this.method_chain.push(
+        (context: Types.ContextForRequest<RequestType>) => {
+          return this.services_handler.runBeforeResourceServices(context);
+        },
+      );
     }
 
     // Run the resource handler
-    this.method_chain.push((context: Types.ContextForRequest) => {
-      if ((context.request as AbstractRequest).end_early) {
+    this.method_chain.push((context: Types.ContextForRequest<RequestType>) => {
+      if ((context.request as unknown as AbstractRequest).end_early) {
         return;
       }
 
@@ -154,9 +164,11 @@ export abstract class AbstractRequestHandler extends ChainHandler
 
     // Run all "global after resource" services
     if (this.services_handler.hasServices("runAfterResource")) {
-      this.method_chain.push((context: Types.ContextForRequest) => {
-        return this.services_handler.runAfterResourceServices(context);
-      });
+      this.method_chain.push(
+        (context: Types.ContextForRequest<RequestType>) => {
+          return this.services_handler.runAfterResourceServices(context);
+        },
+      );
     }
   }
 
@@ -167,13 +179,15 @@ export abstract class AbstractRequestHandler extends ChainHandler
    * @param error
    * @returns
    */
-  #runErrorHandler(
-    context: Types.ContextForRequest,
+  protected runErrorHandler(
+    context: Types.ContextForRequest<RequestType>,
     error: Error,
   ): Promise<void> {
     context.error = error ?? new HttpError(
       Enums.StatusCode.InternalServerError,
     );
+
+    console.log(`WEEEE:`, error);
 
     return Promise
       .resolve()
