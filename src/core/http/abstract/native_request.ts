@@ -19,20 +19,20 @@
  * Drash. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import * as Interfaces from "../interfaces.ts";
-import * as Types from "../types.ts";
+import * as Interfaces from "../../interfaces.ts";
+import * as Types from "../../types.ts";
 
 /**
  * Drash's version of a `Request`. This class introduces helper methods to
  * interact with the native `Request` object (e.g., `request.readBody("json"))`.
  */
-export abstract class AbstractRequest extends Request
-  implements Interfaces.DrashRequest {
-  #cookies?: Record<string, string>;
-  #end_lifecycle = false;
-  #path_params?: Record<string, string | undefined>;
-  #query_params?: URLSearchParams;
-  resource_handler?: Interfaces.ResourceHandler;
+export abstract class AbstractNativeRequest<ResourceHandler> extends Request
+  implements Interfaces.NativeRequest {
+  protected cookies?: Record<string, string>;
+  protected end_lifecycle = false;
+  protected path_params?: Record<string, string | undefined>;
+  protected query_params?: URLSearchParams;
+  protected resource_handler?: ResourceHandler;
 
   /**
    * @param originalRequest - An original, native `Request` object. This should
@@ -55,15 +55,15 @@ export abstract class AbstractRequest extends Request
   }
 
   public cookie(cookie: string): string {
-    if (!this.#cookies) {
-      this.#cookies = this.#setCookies();
+    if (!this.cookies) {
+      this.cookies = this.setCookies();
     }
 
-    return this.#cookies[cookie];
+    return this.cookies[cookie];
   }
 
   public end(): void {
-    this.#end_lifecycle = true;
+    this.end_lifecycle = true;
   }
 
   public header(header: string): string | null {
@@ -71,18 +71,18 @@ export abstract class AbstractRequest extends Request
   }
 
   public pathParam(param: string): string | undefined {
-    if (!this.#path_params) {
-      this.#path_params = this.setPathParams();
+    if (!this.path_params) {
+      this.path_params = this.setPathParams();
     }
 
-    return this.#path_params[param];
+    return this.path_params[param];
   }
 
   public queryParam(param: string): string | null {
-    if (!this.#query_params) {
-      this.#query_params = this.#setQueryParams();
+    if (!this.query_params) {
+      this.query_params = this.setQueryParams();
     }
-    return this.#query_params.get(param);
+    return this.query_params.get(param);
   }
 
   public readBody<T>(method: Types.RequestMethods): Types.Promisable<T> {
@@ -92,12 +92,14 @@ export abstract class AbstractRequest extends Request
   // FILE MARKER - GETTERS / SETTERS ///////////////////////////////////////////
 
   get end_early() {
-    return this.#end_lifecycle;
+    return this.end_lifecycle;
   }
 
   abstract setPathParams(): Record<string, string | undefined>;
 
-  public setResourceHandler(resourceHandler: Interfaces.ResourceHandler) {
+  public setResourceHandler(
+    resourceHandler: ResourceHandler,
+  ) {
     this.resource_handler = resourceHandler;
   }
 
@@ -108,7 +110,7 @@ export abstract class AbstractRequest extends Request
    * @returns A key-value object where the key is the cookie name and the value
    * is the cookie value.
    */
-  #setCookies(): Record<string, string> {
+  protected setCookies(): Record<string, string> {
     const cookie = this.headers.get("Cookie") ?? "";
     const cookiesArray = cookie.split(";");
 
@@ -129,7 +131,7 @@ export abstract class AbstractRequest extends Request
    * `URLSearchParams`.
    * @returns An instance of `URLSearchParams` that can be used to
    */
-  #setQueryParams(): URLSearchParams {
+  protected setQueryParams(): URLSearchParams {
     // TODO(crookse) Make faster if possible
     return new URL(this.url).searchParams;
   }
